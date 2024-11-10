@@ -396,7 +396,7 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
         if (pause)break;
         ++secs;
         mins = secs / 60;
-        if (castle_lifes + 5 >= 500)castle_lifes += 5;
+        if (castle_lifes + 5 <= 500)castle_lifes += 5;
         if (secs % 5 == 0)gold += 5;
         break;
 
@@ -840,7 +840,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
             {
                 unsigned char bound_reached = (*shot)->Move((float)(level));
                 if (bound_reached == left_flag || bound_reached == right_flag
-                    || bound_reached == up_flag || bound_reached == down_flag)
+                    || bound_reached == up_flag || bound_reached == down_flag || bound_reached == end_flag)
                 {
                     vShots.erase(shot);
                     break;
@@ -849,7 +849,32 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
             }
         }
 
-
+        if (!vShots.empty() && !vEvils.empty())
+        {
+            for (std::vector<game::evil_ptr>::iterator evil = vEvils.begin(); evil < vEvils.end(); ++evil)
+            {
+                bool killed = false;
+                for (std::vector<game::SHOTS*>::iterator shot = vShots.begin(); shot < vShots.end(); ++shot)
+                {
+                    if (!((*shot)->x >= (*evil)->ex || (*shot)->ex <= (*evil)->x
+                        || (*shot)->y >= (*evil)->ey || (*shot)->ey <= (*evil)->y))
+                    {
+                        (*evil)->lifes -= (*shot)->strenght;
+                        (*shot)->Release();
+                        vShots.erase(shot);
+                        if ((*evil)->lifes <= 0)
+                        {
+                            (*evil)->Release();
+                            vEvils.erase(evil);
+                            score += 10 * level;
+                            killed = true;
+                        }
+                        break;
+                    }
+                }
+                if (killed)break;
+            }
+        }
 
         //EVILS ENGINE ****************
 

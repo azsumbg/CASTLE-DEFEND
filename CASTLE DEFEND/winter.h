@@ -13,6 +13,7 @@ constexpr char up_flag{ 0b00000001 };
 constexpr char down_flag{ 0b00000010 };
 constexpr char left_flag{ 0b00000100 };
 constexpr char right_flag{ 0b00001000 };
+constexpr char end_flag{ 0b00010000 };
 
 constexpr char evil1_flag{ 0b00000001 };
 constexpr char evil2_flag{ 0b00000010 };
@@ -189,6 +190,8 @@ namespace game
 	class WINTER_API SHOTS :public SIMPLE
 	{
 		private:
+			float start_x{ 0 };
+			float start_y{ 0 };
 			float end_x{ 0 };
 			float end_y{ 0 };
 

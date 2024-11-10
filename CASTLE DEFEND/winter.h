@@ -186,6 +186,33 @@ namespace game
 			void Transform(unsigned char to_what) override;
 	};
 
+	class WINTER_API SHOTS :public SIMPLE
+	{
+		private:
+			float end_x{ 0 };
+			float end_y{ 0 };
+
+			float slope{ 0 };
+			float intercept{ 0 };
+
+			bool hor_path = false;
+			bool vert_path = false;
+
+			int current_frame = -1;
+
+			unsigned char move_flags = 0b00000000;
+
+		public:
+			int strenght{ 0 };
+
+			SHOTS(float _x, float _y, float _end_x, float _end_y, int attack_strenght);
+
+			unsigned char Move(float gear);
+			int GetFrame();
+			bool GetFlag(unsigned char which_flag) const;
+			void Release();
+	};
+
 	typedef EVILS* evil_ptr;
 	typedef HEROES* turret_ptr;
 

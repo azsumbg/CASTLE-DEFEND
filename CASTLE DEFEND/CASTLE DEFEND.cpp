@@ -114,6 +114,7 @@ ID2D1Bitmap* bmpTurret6{ nullptr };
 
 ID2D1Bitmap* bmpIntro[50]{ nullptr };
 ID2D1Bitmap* bmpField[45]{ nullptr };
+ID2D1Bitmap* bmpShot[33]{ nullptr };
 
 ID2D1Bitmap* bmpEvil1[8]{ nullptr };
 ID2D1Bitmap* bmpEvil2[13]{ nullptr };
@@ -129,6 +130,7 @@ game::SIMPLE* Castle{ nullptr };
 
 std::vector<game::evil_ptr>vEvils;
 std::vector<game::turret_ptr>vTurrets;
+std::vector<game::SHOTS*>vShots;
 
 /////////////////////////////////////
 
@@ -177,6 +179,7 @@ void FreeResources()
 
     for (int i = 0; i < 50; i++)if (!FreeHeap(&bmpIntro[i]))LogError(L"Error releasing bmpIntro !");
     for (int i = 0; i < 45; i++)if (!FreeHeap(&bmpField[i]))LogError(L"Error releasing bmpField !");
+    for (int i = 0; i < 33; i++)if (!FreeHeap(&bmpShot[i]))LogError(L"Error releasing bmpShot !");
 
     for (int i = 0; i < 8; i++)if (!FreeHeap(&bmpEvil1[i]))LogError(L"Error releasing bmpEvil1 !");
     for (int i = 0; i < 13; i++)if (!FreeHeap(&bmpEvil2[i]))LogError(L"Error releasing bmpEvil2 !");
@@ -215,6 +218,9 @@ void InitGame()
     if (!vTurrets.empty())
         for (int i = 0; i < vTurrets.size(); ++i)FreeHeap(&vTurrets[i]);
     vTurrets.clear();
+    if (!vShots.empty())
+        for (int i = 0; i < vShots.size(); ++i)FreeHeap(&vShots[i]);
+    vShots.clear();
 
 }
 
@@ -391,6 +397,7 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
         ++secs;
         mins = secs / 60;
         if (castle_lifes + 5 >= 500)castle_lifes += 5;
+        if (secs % 5 == 0)gold += 5;
         break;
 
     case WM_COMMAND:
@@ -414,7 +421,49 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
         }
         break;
 
+    case WM_LBUTTONDOWN:
+        if (!build_selected)
+        {
+            if (gold < 100)
+            {
+                if (sound)mciSendString(L"play.\\res\\negative.wav", NULL, NULL, NULL);
+                break;
+            }
+            else build_selected = true;
+        }
+        else
+        {
+            game::SIMPLE Dummy((float)(LOWORD(lParam)), (float)(HIWORD(lParam)), 55.0f, 56.0f);
+            bool is_ok = true;
+            if (!vTurrets.empty())
+            {
+                for (std::vector<game::turret_ptr>::iterator it = vTurrets.begin(); it < vTurrets.end(); it++)
+                {
+                    if (!(Dummy.x >= (*it)->ex || Dummy.ex <= (*it)->x || Dummy.y >= (*it)->ey || Dummy.ey <= (*it)->y))
+                    {
+                        if (sound)mciSendString(L"play .\\res\\snd\\negative.wav", NULL, NULL, NULL);
+                        is_ok = false;
+                        break;
+                    }
+                }
+            }
 
+            if (is_ok)
+            {
+                gold -= 100;
+                if (sound)mciSendString(L"play .\\res\\snd\\build.wav", NULL, NULL, NULL);
+                vTurrets.push_back(game::TurretFactory(turret1_flag, Dummy.x, Dummy.y));
+            }
+        }
+        break;
+
+    case WM_KEYDOWN:
+        if (wParam == VK_ESCAPE)
+        {
+            build_selected = false;
+            upgrade_selected = false;
+        }
+        break;
 
     default:return DefWindowProc(hwnd, ReceivedMsg, wParam, lParam);
     }
@@ -589,6 +638,20 @@ void CreateResources()
                         ErrExit(eD2D);
                     }
                 }
+                for (int i = 0; i < 33; i++)
+                {
+                    wchar_t name[100] = L".\\res\\img\\shot\\";
+                    wchar_t add[5] = L"\0";
+                    wsprintf(add, L"%d", i);
+                    wcscat_s(name, add);
+                    wcscat_s(name, L".png");
+                    bmpShot[i] = Load(name, Draw);
+                    if (!bmpShot[i])
+                    {
+                        LogError(L"Error loading bmpShot");
+                        ErrExit(eD2D);
+                    }
+                }
                 for (int i = 0; i < 8; i++)
                 {
                     wchar_t name[100] = L".\\res\\img\\evil1\\";
@@ -749,6 +812,45 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
         }
         ////////////////////////////////
 
+        //TURRETS ENGINE ***************
+
+        if (!vTurrets.empty())
+        {
+            for (int i = 0; i < vTurrets.size(); i++)
+            {
+                int attack_strenght = vTurrets[i]->Attack();
+                if (!vEvils.empty() && attack_strenght > 0)
+                {
+                    game::SIMPLE_PACK TargetPack(vEvils.size());
+                    for (int i = 0; i < vEvils.size(); i++)
+                    {
+                        game::SIMPLE OneTarget(vEvils[i]->x, vEvils[i]->y, vEvils[i]->GetWidth(), vEvils[i]->GetHeight());
+                        TargetPack.push_back(OneTarget);
+                    }
+                    GAME_COORD target_coord = vTurrets[i]->SortPack(TargetPack);
+                    game::SHOTS* OneShot = new game::SHOTS(vTurrets[i]->x, vTurrets[i]->y, target_coord.x, target_coord.y,
+                        attack_strenght * level);
+                    vShots.push_back(OneShot);
+                }
+            }
+        }
+        if (!vShots.empty())
+        {
+            for (std::vector<game::SHOTS*>::iterator shot = vShots.begin(); shot < vShots.end(); ++shot)
+            {
+                unsigned char bound_reached = (*shot)->Move((float)(level));
+                if (bound_reached == left_flag || bound_reached == right_flag
+                    || bound_reached == up_flag || bound_reached == down_flag)
+                {
+                    vShots.erase(shot);
+                    break;
+                }
+                
+            }
+        }
+
+
+
         //EVILS ENGINE ****************
 
         if (vEvils.size() < 30 + level)
@@ -822,7 +924,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
             }
         }
 
-
+        /////////////////////////////////
 
         //DRAW THINGS ******************
 
@@ -845,6 +947,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
             if (!b3Hglt)Draw->DrawTextW(L"ПОМОЩ ЗА ИГРАТА", 16, nrmTextFormat, b3Rect, txtBrush);
             else Draw->DrawTextW(L"ПОМОЩ ЗА ИГРАТА", 16, nrmTextFormat, b3Rect, hgltBrush);
         }
+
+        if (build_selected)
+            Draw->DrawBitmap(bmpTurret1, D2D1::RectF((float)(cur_pos.x - 20), (float)(cur_pos.y - 20), 
+                (float)(cur_pos.x + 20), (float)(cur_pos.y + 20)));
 
         if (Castle)
         {
@@ -881,6 +987,30 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
                     int a_frame = vEvils[i]->GetFrame();
                     Draw->DrawBitmap(bmpEvil5[a_frame], Resizer(bmpEvil5[a_frame], vEvils[i]->x, vEvils[i]->y));
                 }
+            }
+        }
+        if (!vTurrets.empty())
+        {
+            for (int i = 0; i < vTurrets.size(); i++)
+            {
+                if (vTurrets[i]->GetFlag(turret1_flag))
+                    Draw->DrawBitmap(bmpTurret1, D2D1::RectF(vTurrets[i]->x, vTurrets[i]->y, vTurrets[i]->ex, vTurrets[i]->ey));
+                if (vTurrets[i]->GetFlag(turret2_flag))
+                    Draw->DrawBitmap(bmpTurret2, D2D1::RectF(vTurrets[i]->x, vTurrets[i]->y, vTurrets[i]->ex, vTurrets[i]->ey));
+                if (vTurrets[i]->GetFlag(turret3_flag))
+                    Draw->DrawBitmap(bmpTurret3, D2D1::RectF(vTurrets[i]->x, vTurrets[i]->y, vTurrets[i]->ex, vTurrets[i]->ey));
+                if (vTurrets[i]->GetFlag(turret4_flag))
+                    Draw->DrawBitmap(bmpTurret4, D2D1::RectF(vTurrets[i]->x, vTurrets[i]->y, vTurrets[i]->ex, vTurrets[i]->ey));
+                if (vTurrets[i]->GetFlag(turret5_flag))
+                    Draw->DrawBitmap(bmpTurret5, D2D1::RectF(vTurrets[i]->x, vTurrets[i]->y, vTurrets[i]->ex, vTurrets[i]->ey));
+            }
+        }
+        if (!vShots.empty())
+        {
+            for (int i = 0; i < vShots.size(); ++i)
+            {
+                int a_frame = vShots[i]->GetFrame();
+                Draw->DrawBitmap(bmpShot[a_frame], Resizer(bmpShot[a_frame], vShots[i]->x, vShots[i]->y));
             }
         }
 

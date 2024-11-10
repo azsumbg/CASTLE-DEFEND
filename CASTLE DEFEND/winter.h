@@ -160,7 +160,7 @@ namespace game
 		public:
 			int lifes{ 0 };
 
-			friend EVILS* EvilFactory(unsigned char _type, float _sx, float _sy);
+			WINTER_API friend EVILS*  EvilFactory(unsigned char _type, float _sx, float _sy);
 
 			unsigned char Move(float gear, SIMPLE_PACK& enemies) override;
 			void Release() override;
@@ -177,7 +177,7 @@ namespace game
 		public:
 			int lifes{ 0 };
 
-			friend HEROES* TurretFactory(unsigned char _what_type, float _sx, float _sy);
+			WINTER_API friend HEROES* TurretFactory(unsigned char _what_type, float _sx, float _sy);
 
 			unsigned char Move(float gear, SIMPLE_PACK& enemies) override;
 			void Release() override;
@@ -188,4 +188,16 @@ namespace game
 
 	typedef EVILS* evil_ptr;
 	typedef HEROES* turret_ptr;
+
+	//FACTORIES ***********************
+
+	 evil_ptr EvilFactory(unsigned char _type, float _sx, float _sy)
+	{
+		return new game::EVILS(_type, _sx, _sy);
+	}
+
+	 turret_ptr TurretFactory(unsigned char _what_type, float _sx, float _sy)
+	{
+		return new HEROES(_what_type, _sx, _sy);
+	}
 }

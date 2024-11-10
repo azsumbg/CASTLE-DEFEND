@@ -97,6 +97,7 @@ ID2D1RadialGradientBrush* bckgBrush{ nullptr };
 ID2D1SolidColorBrush* txtBrush{ nullptr };
 ID2D1SolidColorBrush* hgltBrush{ nullptr };
 ID2D1SolidColorBrush* inactBrush{ nullptr };
+ID2D1SolidColorBrush* lifeBrush{ nullptr };
 
 IDWriteFactory* iWriteFactory{ nullptr };
 IDWriteTextFormat* nrmTextFormat{ nullptr };
@@ -123,6 +124,11 @@ ID2D1Bitmap* bmpEvil5[16]{ nullptr };
 /////////////////////////////////////
 
 game::RANDERER RandGenerator{};
+
+game::SIMPLE* Castle{ nullptr };
+
+std::vector<game::evil_ptr>vEvils;
+std::vector<game::turret_ptr>vTurrets;
 
 /////////////////////////////////////
 
@@ -154,6 +160,7 @@ void FreeResources()
     if (!FreeHeap(&txtBrush))LogError(L"Error releasing txtBrush !");
     if (!FreeHeap(&hgltBrush))LogError(L"Error releasing hgltBrush !");
     if (!FreeHeap(&inactBrush))LogError(L"Error releasing inactBrush !");
+    if (!FreeHeap(&lifeBrush))LogError(L"Error releasing lifeBrush !");
 
     if (!FreeHeap(&iWriteFactory))LogError(L"Error releasing iWriteFactory !");
     if (!FreeHeap(&nrmTextFormat))LogError(L"Error releasing nrmTextFormat !");
@@ -198,6 +205,16 @@ void InitGame()
 
     castle_lifes = 500;
     gold = 500;
+
+    if (Castle)delete Castle;
+    Castle = new game::SIMPLE(5.0f, (float)(RandGenerator(60, (int)(ground) - 120)), 100.0f, 115.0f);
+
+    if (!vEvils.empty())
+        for (int i = 0; i < vEvils.size(); ++i)FreeHeap(&vEvils[i]);
+    vEvils.clear();
+    if (!vTurrets.empty())
+        for (int i = 0; i < vTurrets.size(); ++i)FreeHeap(&vTurrets[i]);
+    vTurrets.clear();
 
 }
 
@@ -493,6 +510,7 @@ void CreateResources()
                 hr = Draw->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Blue),&txtBrush);
                 hr = Draw->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Yellow), &hgltBrush);
                 hr = Draw->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::DarkCyan), &inactBrush);
+                hr = Draw->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::DarkKhaki), &lifeBrush);
                 if (hr != S_OK)
                 {
                     LogError(L"Error creating Text Brushes !");
@@ -731,6 +749,79 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
         }
         ////////////////////////////////
 
+        //EVILS ENGINE ****************
+
+        if (vEvils.size() < 30 + level)
+        {
+            switch (RandGenerator(0, 80))
+            {
+            case 0:
+                vEvils.push_back(game::EvilFactory(evil1_flag, scr_width, (float)(RandGenerator(50, (int)(ground - 100)))));
+                break;
+
+            case 1:
+            {
+                int choice = RandGenerator(0, 20) - level;
+                if (choice < 0)choice = abs(choice);
+                if (choice==6)
+                    vEvils.push_back(game::EvilFactory(evil2_flag, scr_width, (float)(RandGenerator(50, (int)(ground - 100)))));
+            }
+                break;
+
+            case 2:
+            {
+                int choice = RandGenerator(0, 30) - level;
+                if (choice < 0)choice = abs(choice);
+                if (choice == 6)
+                    vEvils.push_back(game::EvilFactory(evil3_flag, scr_width, (float)(RandGenerator(50, (int)(ground - 100)))));
+            }
+            break;
+
+            case 3:
+            {
+                int choice = RandGenerator(0, 40) - level;
+                if (choice < 0)choice = abs(choice);
+                if (choice == 6)
+                    vEvils.push_back(game::EvilFactory(evil4_flag, scr_width, (float)(RandGenerator(50, (int)(ground - 100)))));
+            }
+            break;
+
+            case 4:
+            {
+                int choice = RandGenerator(0, 50) - level;
+                if (choice < 0)choice = abs(choice);
+                if (choice == 6)
+                    vEvils.push_back(game::EvilFactory(evil5_flag, scr_width, (float)(RandGenerator(50, (int)(ground - 100)))));
+            }
+            break;
+
+            }
+        }
+        if (!vEvils.empty())
+        {
+            for (std::vector<game::evil_ptr>::iterator evil = vEvils.begin(); evil < vEvils.end(); evil++)
+            {
+                int container_size = (int)(vTurrets.size()) + 1;
+                game::SIMPLE_PACK EnemyPack(container_size);
+
+                if (Castle)
+                {
+                    game::SIMPLE aCastle(Castle->x, Castle->y, Castle->GetWidth(), Castle->GetHeight());
+                    EnemyPack.push_back(aCastle);
+                }
+                if (!vTurrets.empty())
+                {
+                    for (std::vector<game::turret_ptr>::iterator turret = vTurrets.begin(); turret < vTurrets.end(); turret++)
+                    {
+                        game::SIMPLE aTurret((*turret)->x, (*turret)->y, (*turret)->GetWidth(), (*turret)->GetHeight());
+                        EnemyPack.push_back(aTurret);
+                    }
+                }
+
+                (*evil)->Move((float)(level), EnemyPack);
+            }
+        }
+
 
 
         //DRAW THINGS ******************
@@ -753,6 +844,44 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
             else Draw->DrawTextW(L"ЗВУЦИ ON / OFF", 15, nrmTextFormat, b2Rect, hgltBrush);
             if (!b3Hglt)Draw->DrawTextW(L"ПОМОЩ ЗА ИГРАТА", 16, nrmTextFormat, b3Rect, txtBrush);
             else Draw->DrawTextW(L"ПОМОЩ ЗА ИГРАТА", 16, nrmTextFormat, b3Rect, hgltBrush);
+        }
+
+        if (Castle)
+        {
+            Draw->DrawBitmap(bmpBase, D2D1::RectF(Castle->x, Castle->y, Castle->ex, Castle->ey));
+            if (lifeBrush)Draw->DrawLine(D2D1::Point2F(Castle->x, Castle->ey + 15.0f), D2D1::Point2F(Castle->x + 
+                (float)(castle_lifes / 5.3f), Castle->ey + 15.0f), lifeBrush, 10.0f);
+        }
+        if (!vEvils.empty())
+        {
+            for (int i = 0; i < vEvils.size(); i++)
+            {
+                if (vEvils[i]->GetFlag(evil1_flag))
+                {
+                    int a_frame = vEvils[i]->GetFrame();
+                    Draw->DrawBitmap(bmpEvil1[a_frame], Resizer(bmpEvil1[a_frame], vEvils[i]->x, vEvils[i]->y));
+                }
+                if (vEvils[i]->GetFlag(evil2_flag))
+                {
+                    int a_frame = vEvils[i]->GetFrame();
+                    Draw->DrawBitmap(bmpEvil2[a_frame], Resizer(bmpEvil2[a_frame], vEvils[i]->x, vEvils[i]->y));
+                }
+                if (vEvils[i]->GetFlag(evil3_flag))
+                {
+                    int a_frame = vEvils[i]->GetFrame();
+                    Draw->DrawBitmap(bmpEvil3[a_frame], Resizer(bmpEvil3[a_frame], vEvils[i]->x, vEvils[i]->y));
+                }
+                if (vEvils[i]->GetFlag(evil4_flag))
+                {
+                    int a_frame = vEvils[i]->GetFrame();
+                    Draw->DrawBitmap(bmpEvil4[a_frame], Resizer(bmpEvil4[a_frame], vEvils[i]->x, vEvils[i]->y));
+                }
+                if (vEvils[i]->GetFlag(evil5_flag))
+                {
+                    int a_frame = vEvils[i]->GetFrame();
+                    Draw->DrawBitmap(bmpEvil5[a_frame], Resizer(bmpEvil5[a_frame], vEvils[i]->x, vEvils[i]->y));
+                }
+            }
         }
 
         //////////////////////////////////

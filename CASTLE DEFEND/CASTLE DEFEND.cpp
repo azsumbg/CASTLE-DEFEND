@@ -760,14 +760,14 @@ void CreateResources()
             Draw->DrawBitmap(bmpIntro[intro_frame], D2D1::RectF(0, 0, scr_width, scr_height));
             ++intro_frame;
             if (intro_frame > 49)intro_frame = 0;
-            if (RandGenerator(0, 4) == 2)
+            if (RandGenerator(0, 3) == 2)
             {
                 Draw->DrawTextW(L"ПОСЛЕДЕН ПОСТ !\n\ndev. Daniel", 29, bigTextFormat, D2D1::RectF(80.0f, 80.0f, scr_width,
                     scr_height), txtBrush);
                 mciSendString(L"play .\\res\\snd\\buzz.wav", NULL, NULL, NULL);
             }
             Draw->EndDraw();
-            Sleep(100);
+            Sleep(50);
         }
         Draw->BeginDraw();
         Draw->DrawBitmap(bmpIntro[intro_frame], D2D1::RectF(0, 0, scr_width, scr_height));
@@ -878,9 +878,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
         //EVILS ENGINE ****************
 
-        if (vEvils.size() < 30 + level)
+        if (vEvils.size() < 40 + level)
         {
-            switch (RandGenerator(0, 80))
+            switch (RandGenerator(0, 50))
             {
             case 0:
                 vEvils.push_back(game::EvilFactory(evil1_flag, scr_width, (float)(RandGenerator(50, (int)(ground - 100)))));
@@ -946,6 +946,38 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
                 }
 
                 (*evil)->Move((float)(level), EnemyPack);
+            }
+        }
+        if (!vEvils.empty() && !vTurrets.empty())
+        {
+            for (std::vector<game::evil_ptr>::iterator evil = vEvils.begin(); evil < vEvils.end(); evil++)
+            {
+                bool killed = false;
+                for (std::vector<game::turret_ptr>::iterator turret = vTurrets.begin(); turret < vTurrets.end(); turret++)
+                {
+                    if (!((*turret)->x >= (*evil)->ex || (*turret)->ex <= (*evil)->x
+                        || (*turret)->y >= (*evil)->ey || (*turret)->ey <= (*evil)->y))
+                    {
+                        (*turret)->lifes -= (*evil)->Attack();
+                        if ((*turret)->lifes <= 0);
+                        {
+                            (*turret)->Release();
+                            vTurrets.erase(turret);
+                            killed = true;
+                            break;
+                        }
+                    }
+
+                }
+                if (killed)break;
+            }
+        }
+        if (!vEvils.empty() && Castle)
+        {
+            for (std::vector<game::evil_ptr>::iterator evil = vEvils.begin(); evil < vEvils.end(); evil++)
+            {
+                if (!(Castle->x >= (*evil)->ex || Castle->ex <= (*evil)->x
+                    || Castle->y >= (*evil)->ey || Castle->ey <= (*evil)->y))GameOver();
             }
         }
 

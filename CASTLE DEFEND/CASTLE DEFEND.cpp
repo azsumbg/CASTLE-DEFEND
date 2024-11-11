@@ -207,7 +207,7 @@ void InitGame()
     upgrade_selected = false;
 
     castle_lifes = 500;
-    gold = 500;
+    gold = 400;
 
     if (Castle)delete Castle;
     Castle = new game::SIMPLE(5.0f, (float)(RandGenerator(60, (int)(ground) - 120)), 100.0f, 115.0f);
@@ -394,7 +394,7 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
 
     case WM_TIMER:
         if (pause)break;
-        ++secs;
+        --secs;
         mins = secs / 60;
         if (castle_lifes + 5 <= 500)castle_lifes += 5;
         if (secs % 5 == 0)gold += 5;
@@ -422,37 +422,56 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
         break;
 
     case WM_LBUTTONDOWN:
-        if (!build_selected)
+        if (HIWORD(lParam) <= 50)
+        {
+            if (LOWORD(lParam) >= b1Rect.left && LOWORD(lParam) <= b1Rect.right)
+            {
+                if (name_set)
+                {
+                    if (sound)mciSendString(L"play .\\res\\snd\\negative.wav", NULL, NULL, NULL);
+                    break;
+                }
+                if (sound)mciSendString(L"play .\\res\\snd\\select.wav", NULL, NULL, NULL);
+                if (DialogBox(bIns, MAKEINTRESOURCE(IDD_PLAYER), hwnd, &DlgProc) == IDOK)name_set = true;
+                break;
+            }
+
+        }
+        else
         {
             if (gold < 100)
             {
                 if (sound)mciSendString(L"play.\\res\\negative.wav", NULL, NULL, NULL);
+                build_selected = false;
                 break;
             }
-            else build_selected = true;
-        }
-        else
-        {
-            game::SIMPLE Dummy((float)(LOWORD(lParam)), (float)(HIWORD(lParam)), 55.0f, 56.0f);
-            bool is_ok = true;
-            if (!vTurrets.empty())
+            if (!build_selected)
             {
-                for (std::vector<game::turret_ptr>::iterator it = vTurrets.begin(); it < vTurrets.end(); it++)
+                build_selected = true;
+            }
+            else
+            {
+                game::SIMPLE Dummy((float)(LOWORD(lParam)), (float)(HIWORD(lParam)), 55.0f, 56.0f);
+                bool is_ok = true;
+                if (!vTurrets.empty())
                 {
-                    if (!(Dummy.x >= (*it)->ex || Dummy.ex <= (*it)->x || Dummy.y >= (*it)->ey || Dummy.ey <= (*it)->y))
+                    for (std::vector<game::turret_ptr>::iterator it = vTurrets.begin(); it < vTurrets.end(); it++)
                     {
-                        if (sound)mciSendString(L"play .\\res\\snd\\negative.wav", NULL, NULL, NULL);
-                        is_ok = false;
-                        break;
+                        if (!(Dummy.x >= (*it)->ex || Dummy.ex <= (*it)->x || Dummy.y >= (*it)->ey || Dummy.ey <= (*it)->y))
+                        {
+                            if (sound)mciSendString(L"play .\\res\\snd\\negative.wav", NULL, NULL, NULL);
+                            is_ok = false;
+                            break;
+                        }
                     }
                 }
-            }
-
-            if (is_ok)
-            {
-                gold -= 100;
-                if (sound)mciSendString(L"play .\\res\\snd\\build.wav", NULL, NULL, NULL);
-                vTurrets.push_back(game::TurretFactory(turret1_flag, Dummy.x, Dummy.y));
+                if (is_ok)
+                {
+                    gold -= 100;
+                    if (sound)mciSendString(L"play .\\res\\snd\\build.wav", NULL, NULL, NULL);
+                    vTurrets.push_back(game::TurretFactory(turret1_flag, Dummy.x, Dummy.y));
+                    build_selected = false;
+                }
             }
         }
         break;
@@ -867,6 +886,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
                             (*evil)->Release();
                             vEvils.erase(evil);
                             score += 10 * level;
+                            gold += 5 * level;
                             killed = true;
                         }
                         break;
@@ -977,7 +997,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
             for (std::vector<game::evil_ptr>::iterator evil = vEvils.begin(); evil < vEvils.end(); evil++)
             {
                 if (!(Castle->x >= (*evil)->ex || Castle->ex <= (*evil)->x
-                    || Castle->y >= (*evil)->ey || Castle->ey <= (*evil)->y))GameOver();
+                    || Castle->y >= (*evil)->ey || Castle->ey <= (*evil)->y))
+                {
+                    castle_lifes -= (*evil)->Attack();
+                    if (castle_lifes <= 0)GameOver();
+                }
             }
         }
 
@@ -1070,7 +1094,37 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
                 Draw->DrawBitmap(bmpShot[a_frame], Resizer(bmpShot[a_frame], vShots[i]->x, vShots[i]->y));
             }
         }
+        /////////////////////////////////
 
+        wchar_t stat_txt[150] = L"КОМАНДИР: ";
+        wchar_t add[5] = L"\0";
+        int txt_size = 0;
+
+        wcscat_s(stat_txt, current_player);
+        
+        wcscat_s(stat_txt, L", ЗЛАТО: ");
+        wsprintf(add, L"%d", gold);
+        wcscat_s(stat_txt, add);
+
+        wcscat_s(stat_txt, L", РЕЗУЛТАТ: ");
+        wsprintf(add, L"%d", score);
+        wcscat_s(stat_txt, add);
+
+        wcscat_s(stat_txt, L", ВРЕМЕ: 0");
+        wsprintf(add, L"%d", mins);
+        wcscat_s(stat_txt, add);
+        wcscat_s(stat_txt, L" : ");
+        if (secs - mins * 60 < 10)wcscat_s(stat_txt, L"0");
+        wsprintf(add, L"%d", secs - mins * 60);
+        wcscat_s(stat_txt, add);
+
+        for (int i = 0; i < 150; i++)
+            if (stat_txt[i] != '\0')++txt_size;
+            else break;
+        if (nrmTextFormat && hgltBrush)
+            Draw->DrawTextW(stat_txt, txt_size, nrmTextFormat, D2D1::RectF(10.0f, ground + 10.0f, scr_width, scr_height), 
+                hgltBrush);
+        
         //////////////////////////////////
 
         Draw->EndDraw();

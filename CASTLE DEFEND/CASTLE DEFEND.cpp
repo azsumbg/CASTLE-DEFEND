@@ -233,6 +233,45 @@ void GameOver()
     bMsg.message = WM_QUIT;
     bMsg.wParam = 0;
 }
+void LevelUp()
+{
+    if (bigTextFormat && inactBrush)
+    {
+        Draw->BeginDraw();
+        Draw->Clear(D2D1::ColorF(D2D1::ColorF::Chocolate));
+        Draw->DrawTextW(L"НИВОТО ПРЕМИНАТО !", 19, bigTextFormat, D2D1::RectF(10, 200, scr_width, scr_height), inactBrush);
+        Draw->EndDraw();
+    }
+    if (sound)
+    {
+        PlaySound(NULL, NULL, NULL);
+        PlaySound(L".\\res\\snd\\levelup.wav", NULL, SND_SYNC);
+        PlaySound(snd_file, NULL, SND_ASYNC | SND_LOOP);
+    }
+    else Sleep(3500);
+    score += level * 100;
+    ++level;
+
+    secs = 300 + level * 10;
+    build_selected = false;
+    upgrade_selected = false;
+
+    castle_lifes = 500;
+    gold += 100;
+
+    if (Castle)delete Castle;
+    Castle = new game::SIMPLE(5.0f, (float)(RandGenerator(60, (int)(ground)-120)), 100.0f, 115.0f);
+
+    if (!vEvils.empty())
+        for (int i = 0; i < vEvils.size(); ++i)FreeHeap(&vEvils[i]);
+    vEvils.clear();
+    if (!vTurrets.empty())
+        for (int i = 0; i < vTurrets.size(); ++i)FreeHeap(&vTurrets[i]);
+    vTurrets.clear();
+    if (!vShots.empty())
+        for (int i = 0; i < vShots.size(); ++i)FreeHeap(&vShots[i]);
+    vShots.clear();
+}
 
 INT_PTR CALLBACK DlgProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -394,6 +433,11 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
 
     case WM_TIMER:
         if (pause)break;
+        if (secs <= 0)
+        {
+            LevelUp();
+            break;
+        }
         --secs;
         mins = secs / 60;
         if (castle_lifes + 5 <= 500)castle_lifes += 5;
@@ -422,6 +466,7 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
         break;
 
     case WM_LBUTTONDOWN:
+        if (upgrade_selected)break;
         if (HIWORD(lParam) <= 50)
         {
             if (LOWORD(lParam) >= b1Rect.left && LOWORD(lParam) <= b1Rect.right)
@@ -471,6 +516,96 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
                     if (sound)mciSendString(L"play .\\res\\snd\\build.wav", NULL, NULL, NULL);
                     vTurrets.push_back(game::TurretFactory(turret1_flag, Dummy.x, Dummy.y));
                     build_selected = false;
+                }
+            }
+        }
+        break;
+        
+    case WM_RBUTTONDOWN:
+        if (gold < 200 || vTurrets.empty() || build_selected)break;
+        else
+        {
+            if (!upgrade_selected)
+            {
+                upgrade_selected = true;
+                break;
+            }
+            else
+            {
+                int cur_x = LOWORD(lParam);
+                int cur_y = HIWORD(lParam);
+                bool found = false;
+
+                if (!vTurrets.empty())
+                {
+                    for (std::vector<game::turret_ptr>::iterator turret = vTurrets.begin(); turret < vTurrets.end(); turret++)
+                    {
+                        if (cur_x >= (*turret)->x && cur_x <= (*turret)->ex && cur_y >= (*turret)->y && cur_y <= (*turret)->ey)
+                        {
+                            if ((*turret)->GetFlag(turret1_flag))
+                            {
+                                (*turret)->NullFlag(turret1_flag);
+                                (*turret)->Transform(turret2_flag);
+                                gold -= 200;
+                                if (sound)mciSendString(L"play .\\res\\snd\\upgrade.wav", NULL, NULL, NULL);
+                                upgrade_selected = false;
+                                found = true;
+                                break;
+                            }
+                            else if ((*turret)->GetFlag(turret2_flag))
+                            {
+                                (*turret)->NullFlag(turret2_flag);
+                                (*turret)->Transform(turret3_flag);
+                                gold -= 200;
+                                if (sound)mciSendString(L"play .\\res\\snd\\upgrade.wav", NULL, NULL, NULL);
+                                upgrade_selected = false;
+                                found = true;
+                                break;
+                            }
+                            else if ((*turret)->GetFlag(turret3_flag))
+                            {
+                                (*turret)->NullFlag(turret3_flag);
+                                (*turret)->Transform(turret4_flag);
+                                gold -= 200;
+                                if (sound)mciSendString(L"play .\\res\\snd\\upgrade.wav", NULL, NULL, NULL);
+                                upgrade_selected = false;
+                                found = true;
+                                break;
+                            }
+                            else if ((*turret)->GetFlag(turret4_flag))
+                            {
+                                (*turret)->NullFlag(turret4_flag);
+                                (*turret)->Transform(turret5_flag);
+                                gold -= 200;
+                                if (sound)mciSendString(L"play .\\res\\snd\\upgrade.wav", NULL, NULL, NULL);
+                                upgrade_selected = false;
+                                found = true;
+                                break;
+                            }
+                            else if ((*turret)->GetFlag(turret5_flag))
+                            {
+                                (*turret)->NullFlag(turret5_flag);
+                                (*turret)->Transform(turret6_flag);
+                                gold -= 200;
+                                if (sound)mciSendString(L"play .\\res\\snd\\upgrade.wav", NULL, NULL, NULL);
+                                upgrade_selected = false;
+                                found = true;
+                                break;
+                            }
+                            else if ((*turret)->GetFlag(turret6_flag))
+                            {
+                                if (sound)mciSendString(L"play .\\res\\snd\\negative.wav", NULL, NULL, NULL);
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!found)
+                {
+                    if(sound)mciSendString(L"play .\\res\\snd\\negative.wav", NULL, NULL, NULL);
+                    upgrade_selected = false;
+                    break;
                 }
             }
         }
@@ -966,6 +1101,38 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
                 }
 
                 (*evil)->Move((float)(level), EnemyPack);
+
+                if (RandGenerator(0, 30000) - level + 100 == 666)
+                {
+                    if ((*evil)->GetFlag(evil1_flag))
+                    {
+                        if (sound)mciSendString(L"play .\\res\\snd\\evilupgr.wav", NULL, NULL, NULL);
+                        (*evil)->NullFlag(evil1_flag);
+                        (*evil)->Transform(evil2_flag);
+                        break;
+                    }
+                    if ((*evil)->GetFlag(evil2_flag))
+                    {
+                        if (sound)mciSendString(L"play .\\res\\snd\\evilupgr.wav", NULL, NULL, NULL);
+                        (*evil)->NullFlag(evil2_flag);
+                        (*evil)->Transform(evil3_flag);
+                        break;
+                    }
+                    if ((*evil)->GetFlag(evil3_flag))
+                    {
+                        if (sound)mciSendString(L"play .\\res\\snd\\evilupgr.wav", NULL, NULL, NULL);
+                        (*evil)->NullFlag(evil3_flag);
+                        (*evil)->Transform(evil4_flag);
+                        break;
+                    }
+                    if ((*evil)->GetFlag(evil4_flag))
+                    {
+                        if (sound)mciSendString(L"play .\\res\\snd\\evilupgr.wav", NULL, NULL, NULL);
+                        (*evil)->NullFlag(evil4_flag);
+                        (*evil)->Transform(evil5_flag);
+                        break;
+                    }
+                }
             }
         }
         if (!vEvils.empty() && !vTurrets.empty())
@@ -979,7 +1146,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
                         || (*turret)->y >= (*evil)->ey || (*turret)->ey <= (*evil)->y))
                     {
                         (*turret)->lifes -= (*evil)->Attack();
-                        if ((*turret)->lifes <= 0);
+                        if (sound)mciSendString(L"play .\\res\\snd\\evilatt.wav", NULL, NULL, NULL);
+                        if ((*turret)->lifes <= 0)
                         {
                             (*turret)->Release();
                             vTurrets.erase(turret);
@@ -999,6 +1167,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
                 if (!(Castle->x >= (*evil)->ex || Castle->ex <= (*evil)->x
                     || Castle->y >= (*evil)->ey || Castle->ey <= (*evil)->y))
                 {
+                    if (sound)mciSendString(L"play .\\res\\snd\\evilatt.wav", NULL, NULL, NULL);
                     castle_lifes -= (*evil)->Attack();
                     if (castle_lifes <= 0)GameOver();
                 }

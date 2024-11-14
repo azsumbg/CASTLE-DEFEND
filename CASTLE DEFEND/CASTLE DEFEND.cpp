@@ -256,7 +256,7 @@ void GameOver()
 {
     PlaySound(NULL, NULL, NULL);
     KillTimer(bHwnd, bTimer);
-    if (castle_lifes <= 0 && sound)mciSendString(L"play .\\res\\snd\\killed.wav", NULL, NULL, NULL);
+    if (castle_lifes <= 0 && sound)PlaySound(L".\\res\\snd\\killed.wav", NULL, SND_SYNC);
     score += gold;
 
     wchar_t fin_txt[30]{ L"СВЕТЪТ Е ПОГУБЕН !" };
@@ -1610,7 +1610,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
                 {
                     if (sound)mciSendString(L"play .\\res\\snd\\evilatt.wav", NULL, NULL, NULL);
                     castle_lifes -= (*evil)->Attack();
-                    if (castle_lifes <= 0)GameOver();
+                    if (castle_lifes <= 0)
+                    {
+                        delete Castle;
+                        Castle = nullptr;
+                        GameOver();
+                        break;
+                    }
                 }
             }
         }

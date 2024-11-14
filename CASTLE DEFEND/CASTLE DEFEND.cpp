@@ -256,6 +256,7 @@ void GameOver()
 {
     PlaySound(NULL, NULL, NULL);
     KillTimer(bHwnd, bTimer);
+    score += gold;
 
     wchar_t fin_txt[30]{ L"СВЕТЪТ Е ПОГУБЕН !" };
     int txt_size = 19;
@@ -398,6 +399,221 @@ void HallOfFame()
         PlaySound(snd_file, NULL, SND_ASYNC | SND_LOOP);
     }
     else Sleep(3500);
+}
+void SaveGame()
+{
+    int result{};
+    CheckFile(save_file, &result);
+    if (result == FILE_EXIST)
+    {
+        if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
+        if (MessageBox(bHwnd, L"Ако продължиш, ще изгубиш предишна записана игра !\n\nНаистина ли я презаписваш ?",
+            L"Презапис !", MB_YESNO | MB_APPLMODAL | MB_ICONQUESTION) == IDNO)return;
+    }
+
+    std::wofstream save(save_file);
+    
+    save << score << std::endl;
+    save << gold << std::endl;
+    save << level << std::endl;
+    save << secs << std::endl;
+    save << castle_lifes << std::endl;
+    save << Castle->x << std::endl;
+    save << Castle->y << std::endl;
+    
+    save << name_set << std::endl;
+    for (int i = 0; i < 16; i++)save << static_cast<int>(current_player[i]) << std::endl;
+
+    save << vTurrets.size() << std::endl;
+    if (!vTurrets.empty())
+    {
+        for (int i = 0; i < vTurrets.size(); i++)
+        {
+            save << vTurrets[i]->x << std::endl;
+            save << vTurrets[i]->y << std::endl;
+            if (vTurrets[i]->GetFlag(turret1_flag))save << 1 << std::endl;
+            else if (vTurrets[i]->GetFlag(turret2_flag))save << 2 << std::endl;
+            else if (vTurrets[i]->GetFlag(turret3_flag))save << 3 << std::endl;
+            else if (vTurrets[i]->GetFlag(turret4_flag))save << 4 << std::endl;
+            else if (vTurrets[i]->GetFlag(turret5_flag))save << 5 << std::endl;
+            else if (vTurrets[i]->GetFlag(turret6_flag))save << 6 << std::endl;
+
+            save << vTurrets[i]->lifes << std::endl;
+        }
+    }
+
+    save << vEvils.size() << std::endl;
+    if (!vEvils.empty())
+    {
+        for (int i = 0; i < vEvils.size(); i++)
+        {
+            save << vEvils[i]->x << std::endl;
+            save << vEvils[i]->y << std::endl;
+            if (vEvils[i]->GetFlag(evil1_flag))save << 1 << std::endl;
+            else if (vEvils[i]->GetFlag(evil2_flag))save << 2 << std::endl;
+            else if (vEvils[i]->GetFlag(evil3_flag))save << 3 << std::endl;
+            else if (vEvils[i]->GetFlag(evil4_flag))save << 4 << std::endl;
+            else if (vEvils[i]->GetFlag(evil5_flag))save << 5 << std::endl;
+            
+            save << vEvils[i]->lifes << std::endl;
+        }
+    }
+    
+    save.close();
+
+    if (sound)mciSendString(L"play .\\res\\snd\\save.wav", NULL, NULL, NULL);
+
+    MessageBox(bHwnd, L"Играта е запазена !", L"Запис !", MB_OK | MB_APPLMODAL | MB_ICONINFORMATION);
+}
+void LoadGame()
+{
+    int result{};
+    CheckFile(save_file, &result);
+    if (result == FILE_NOT_EXIST)
+    {
+        if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
+        MessageBox(bHwnd, L"Все още няма записана игра !\n\nПостарай се повече !",
+            L"Липсва файл", MB_OK | MB_APPLMODAL | MB_ICONEXCLAMATION);
+        return;
+    }
+    else
+    {
+        if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
+        if (MessageBox(bHwnd, L"Ако продължиш, ще изгубиш тази игра !\n\nНаистина ли я презаписваш ?",
+            L"Презапис !", MB_YESNO | MB_APPLMODAL | MB_ICONQUESTION) == IDNO)return;
+    }
+
+    build_selected = false;
+    upgrade_selected = false;
+
+    castle_lifes = 500;
+    gold += 100;
+
+    if (Castle)delete Castle;
+    Castle = new game::SIMPLE(5.0f, (float)(RandGenerator(60, (int)(ground)-120)), 100.0f, 115.0f);
+
+    if (!vEvils.empty())
+        for (int i = 0; i < vEvils.size(); ++i)FreeHeap(&vEvils[i]);
+    vEvils.clear();
+    if (!vTurrets.empty())
+        for (int i = 0; i < vTurrets.size(); ++i)FreeHeap(&vTurrets[i]);
+    vTurrets.clear();
+    if (!vShots.empty())
+        for (int i = 0; i < vShots.size(); ++i)FreeHeap(&vShots[i]);
+    vShots.clear();
+
+    std::wifstream save(save_file);
+
+    save >> score;
+    save >> gold;
+    save >> level;
+    save >> secs;
+    save >> castle_lifes;
+    if (castle_lifes <= 0)GameOver();
+    save >> Castle->x;
+    save >> Castle->y;
+
+    save >> name_set;
+    for (int i = 0; i < 16; i++)
+    {
+        int letter{ 0 };
+        save >> letter;
+        current_player[i] = static_cast<wchar_t>(letter);
+    }
+
+    save >> result;
+    if (result > 0)
+    {
+        for (int i = 0; i < result; i++)
+        {
+            float temp_x{ 0 };
+            float temp_y{ 0 };
+            int temp_flag{ 0 };
+            int temp_lifes{ 0 };
+
+            save >> temp_x;
+            save >> temp_y;
+            save >> temp_flag;
+            save >> temp_lifes;
+
+            switch (temp_flag)
+            {
+            case 1:
+                vTurrets.push_back(game::TurretFactory(turret1_flag, temp_x, temp_y));
+                break;
+
+            case 2:
+                vTurrets.push_back(game::TurretFactory(turret2_flag, temp_x, temp_y));
+                break;
+
+            case 3:
+                vTurrets.push_back(game::TurretFactory(turret3_flag, temp_x, temp_y));
+                break;
+
+            case 4:
+                vTurrets.push_back(game::TurretFactory(turret4_flag, temp_x, temp_y));
+                break;
+
+            case 5:
+                vTurrets.push_back(game::TurretFactory(turret5_flag, temp_x, temp_y));
+                break;
+
+            case 6:
+                vTurrets.push_back(game::TurretFactory(turret6_flag, temp_x, temp_y));
+                break;
+            }
+
+            vTurrets.back()->lifes = temp_lifes;
+        }
+    }
+
+    save >> result;
+    if (result > 0)
+    {
+        for (int i = 0; i < result; i++)
+        {
+            float temp_x{ 0 };
+            float temp_y{ 0 };
+            int temp_flag{ 0 };
+            int temp_lifes{ 0 };
+
+            save >> temp_x;
+            save >> temp_y;
+            save >> temp_flag;
+            save >> temp_lifes;
+
+            switch (temp_flag)
+            {
+            case 1:
+                vEvils.push_back(game::EvilFactory(evil1_flag, temp_x, temp_y));
+                break;
+
+            case 2:
+                vEvils.push_back(game::EvilFactory(evil2_flag, temp_x, temp_y));
+                break;
+
+            case 3:
+                vEvils.push_back(game::EvilFactory(evil3_flag, temp_x, temp_y));
+                break;
+
+            case 4:
+                vEvils.push_back(game::EvilFactory(evil4_flag, temp_x, temp_y));
+                break;
+
+            case 5:
+                vEvils.push_back(game::EvilFactory(evil5_flag, temp_x, temp_y));
+                break;
+            }
+            
+            vEvils.back()->lifes = temp_lifes;
+        }
+    }
+
+    save.close();
+
+    if (sound)mciSendString(L"play .\\res\\snd\\save.wav", NULL, NULL, NULL);
+
+    MessageBox(bHwnd, L"Играта е заредена !", L"Зареждане !", MB_OK | MB_APPLMODAL | MB_ICONINFORMATION);
 }
 
 
@@ -590,6 +806,17 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
             SendMessage(hwnd, WM_CLOSE, NULL, NULL);
             break;
 
+        case mSave:
+            pause = true;
+            SaveGame();
+            pause = false;
+            break;
+
+        case mLoad:
+            pause = true;
+            LoadGame();
+            pause = false;
+            break;
 
         case mHoF:
             pause = true;

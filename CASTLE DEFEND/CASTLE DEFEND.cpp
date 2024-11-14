@@ -223,12 +223,85 @@ void InitGame()
     vShots.clear();
 
 }
-
+BOOL CheckRecord()
+{
+    if (score < 1)return no_record;
+    int result{ 0 };
+    CheckFile(record_file, &result);
+    if (result == FILE_NOT_EXIST)
+    {
+        std::wofstream rec(record_file);
+        rec << score << std::endl;
+        for (int i = 0; i < 16; i++)rec << static_cast<int>(current_player[i]) << std::endl;
+        rec.close();
+        return first_record;
+    }
+    else
+    {
+        std::wifstream check(record_file);
+        check >> result;
+        check.close();
+        if (result < score)
+        {
+            std::wofstream rec(record_file);
+            rec << score << std::endl;
+            for (int i = 0; i < 16; i++)rec << static_cast<int>(current_player[i]) << std::endl;
+            rec.close();
+            return record;
+        }
+    }
+    return no_record;
+}
 void GameOver()
 {
     PlaySound(NULL, NULL, NULL);
     KillTimer(bHwnd, bTimer);
 
+    wchar_t fin_txt[30]{ L"СВЕТЪТ Е ПОГУБЕН !" };
+    int txt_size = 19;
+
+    switch (CheckRecord())
+    {
+    case no_record:
+        if(bigTextFormat && inactBrush)
+        {
+            Draw->BeginDraw();
+            Draw->Clear(D2D1::ColorF(D2D1::ColorF::Chocolate));
+            Draw->DrawTextW(fin_txt, 19, bigTextFormat, D2D1::RectF(10, 200, scr_width, scr_height), inactBrush);
+            Draw->EndDraw();
+        }
+        if (sound) PlaySound(L".\\res\\snd\\loose.wav", NULL, SND_SYNC);
+        else Sleep(3500);
+        break;
+
+    case first_record:
+        wcscpy_s(fin_txt, L"ПЪРВИ РЕКОРД НА ИГРАТА !");
+        txt_size = 25;
+        if (bigTextFormat && inactBrush)
+        {
+            Draw->BeginDraw();
+            Draw->Clear(D2D1::ColorF(D2D1::ColorF::Chocolate));
+            Draw->DrawTextW(fin_txt, txt_size, bigTextFormat, D2D1::RectF(10, 200, scr_width, scr_height), inactBrush);
+            Draw->EndDraw();
+        }
+        if (sound) PlaySound(L".\\res\\snd\\record.wav", NULL, SND_SYNC);
+        else Sleep(3500);
+        break;
+
+    case record:
+        wcscpy_s(fin_txt, L"НОВ СВЕТОВЕН РЕКОРД !");
+        txt_size = 22;
+        if (bigTextFormat && inactBrush)
+        {
+            Draw->BeginDraw();
+            Draw->Clear(D2D1::ColorF(D2D1::ColorF::Chocolate));
+            Draw->DrawTextW(fin_txt, txt_size, bigTextFormat, D2D1::RectF(10, 200, scr_width, scr_height), inactBrush);
+            Draw->EndDraw();
+        }
+        if (sound) PlaySound(L".\\res\\snd\\record.wav", NULL, SND_SYNC);
+        else Sleep(3500);
+        break;
+    }
 
     bMsg.message = WM_QUIT;
     bMsg.wParam = 0;
@@ -272,6 +345,61 @@ void LevelUp()
         for (int i = 0; i < vShots.size(); ++i)FreeHeap(&vShots[i]);
     vShots.clear();
 }
+void HallOfFame()
+{
+    int result{};
+    CheckFile(record_file, &result);
+    if (result == FILE_NOT_EXIST)
+    {
+        if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
+        MessageBox(bHwnd, L"Все още няма рекорд на играта !\n\nПостарай се повече !",
+            L"Липсва файл", MB_OK | MB_APPLMODAL | MB_ICONEXCLAMATION);
+        return;
+    }
+
+    wchar_t rec_txt[100] = L"КОМАНДИР :";
+    wchar_t add[5] = L"\0";
+    wchar_t saved_player[16] = L"\0";
+
+    std::wifstream rec(record_file);
+    rec >> result;
+    for (int i = 0; i < 16; i++)
+    {
+        int letter = 0;
+        rec >> letter;
+        saved_player[i] = static_cast<wchar_t>(letter);
+    }
+    rec.close();
+
+    wcscat_s(rec_txt, saved_player);
+    wcscat_s(rec_txt, L"\n\nСВЕТОВЕН РЕКОРД: ");
+    wsprintf(add, L"%d", result);
+    wcscat_s(rec_txt, add);
+
+    result = 0;
+
+    for (int i = 0; i < 100; i++)
+    {
+        if (rec_txt[i] != '\0')result++;
+        else break;
+    }
+
+    if (bigTextFormat && inactBrush)
+    {
+        Draw->BeginDraw();
+        Draw->Clear(D2D1::ColorF(D2D1::ColorF::Chocolate));
+        Draw->DrawTextW(rec_txt, result, bigTextFormat, D2D1::RectF(10, 100, scr_width, scr_height), inactBrush);
+        Draw->EndDraw();
+    }
+    if (sound)
+    {
+        PlaySound(NULL, NULL, NULL);
+        PlaySound(L".\\res\\snd\\showrec.wav", NULL, SND_SYNC);
+        PlaySound(snd_file, NULL, SND_ASYNC | SND_LOOP);
+    }
+    else Sleep(3500);
+}
+
 
 INT_PTR CALLBACK DlgProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -462,6 +590,12 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
             SendMessage(hwnd, WM_CLOSE, NULL, NULL);
             break;
 
+
+        case mHoF:
+            pause = true;
+            HallOfFame();
+            pause = false;
+            break;
         }
         break;
 
@@ -522,7 +656,11 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
         break;
         
     case WM_RBUTTONDOWN:
-        if (gold < 200 || vTurrets.empty() || build_selected)break;
+        if (gold < 200 || vTurrets.empty() || build_selected)
+        {
+            if(sound)mciSendString(L"play .\\res\\snd\\negative.wav", NULL, NULL, NULL);
+            break;
+        }
         else
         {
             if (!upgrade_selected)
@@ -932,7 +1070,6 @@ void CreateResources()
         PlaySound(L".\\res\\snd\\boom.wav", NULL, SND_SYNC);
     }
 }
-
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
 {

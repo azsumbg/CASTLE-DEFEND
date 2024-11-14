@@ -256,6 +256,7 @@ void GameOver()
 {
     PlaySound(NULL, NULL, NULL);
     KillTimer(bHwnd, bTimer);
+    if (castle_lifes <= 0 && sound)mciSendString(L"play .\\res\\snd\\killed.wav", NULL, NULL, NULL);
     score += gold;
 
     wchar_t fin_txt[30]{ L"СВЕТЪТ Е ПОГУБЕН !" };
@@ -373,7 +374,7 @@ void HallOfFame()
     rec.close();
 
     wcscat_s(rec_txt, saved_player);
-    wcscat_s(rec_txt, L"\n\nСВЕТОВЕН РЕКОРД: ");
+    wcscat_s(rec_txt, L"\nСВЕТОВЕН РЕКОРД: ");
     wsprintf(add, L"%d", result);
     wcscat_s(rec_txt, add);
 
@@ -397,6 +398,7 @@ void HallOfFame()
         PlaySound(NULL, NULL, NULL);
         PlaySound(L".\\res\\snd\\showrec.wav", NULL, SND_SYNC);
         PlaySound(snd_file, NULL, SND_ASYNC | SND_LOOP);
+        Sleep(2000);
     }
     else Sleep(3500);
 }
@@ -615,7 +617,51 @@ void LoadGame()
 
     MessageBox(bHwnd, L"Играта е заредена !", L"Зареждане !", MB_OK | MB_APPLMODAL | MB_ICONINFORMATION);
 }
+void ShowHelp()
+{
+    int result{};
+    CheckFile(help_file, &result);
+    if(result==FILE_NOT_EXIST)
+    {
+        if (sound)mciSendString(L"play .\\res\\snd\\exclamation.wav", NULL, NULL, NULL);
+        MessageBox(bHwnd, L"Липсва помощна информация !\n\nСвържете се с разработчика !",
+            L"Липсва файл", MB_OK | MB_APPLMODAL | MB_ICONEXCLAMATION);
+        return;
+    }
 
+    wchar_t help_txt[1000] = L"\0";
+
+    std::wifstream help(help_file);
+    help >> result;
+    for (int i = 0; i < result; i++)
+    {
+        int letter{ 0 };
+        help >> letter;
+        help_txt[i] = static_cast<wchar_t>(letter);
+    }
+    help.close();
+
+    if (midTextFormat && inactBrush && nrmTextFormat && txtBrush && hgltBrush && bckgBrush)
+    {
+        Draw->BeginDraw();
+        Draw->Clear(D2D1::ColorF(D2D1::ColorF::DarkBlue));
+        Draw->FillRectangle(D2D1::RectF(0, 0, scr_width, 50.0f), bckgBrush);
+        if (name_set)
+            Draw->DrawTextW(L"ИМЕ НА КОМАНДИР", 16, nrmTextFormat, b1Rect, inactBrush);
+        else
+        {
+            if (!b1Hglt)Draw->DrawTextW(L"ИМЕ НА КОМАНДИР", 16, nrmTextFormat, b1Rect, txtBrush);
+            else Draw->DrawTextW(L"ИМЕ НА КОМАНДИР", 16, nrmTextFormat, b1Rect, hgltBrush);
+        }
+        if (!b2Hglt)Draw->DrawTextW(L"ЗВУЦИ ON / OFF", 15, nrmTextFormat, b2Rect, txtBrush);
+        else Draw->DrawTextW(L"ЗВУЦИ ON / OFF", 15, nrmTextFormat, b2Rect, hgltBrush);
+        if (!b3Hglt)Draw->DrawTextW(L"ПОМОЩ ЗА ИГРАТА", 16, nrmTextFormat, b3Rect, txtBrush);
+        else Draw->DrawTextW(L"ПОМОЩ ЗА ИГРАТА", 16, nrmTextFormat, b3Rect, hgltBrush);
+        Draw->DrawTextW(help_txt, result, midTextFormat, D2D1::RectF(20.0f, 80.0f, scr_width, scr_height), inactBrush);
+        Draw->EndDraw();
+    }
+
+}
 
 INT_PTR CALLBACK DlgProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -827,7 +873,6 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
         break;
 
     case WM_LBUTTONDOWN:
-        if (upgrade_selected)break;
         if (HIWORD(lParam) <= 50)
         {
             if (LOWORD(lParam) >= b1Rect.left && LOWORD(lParam) <= b1Rect.right)
@@ -841,10 +886,41 @@ LRESULT CALLBACK WinProc(HWND hwnd, UINT ReceivedMsg, WPARAM wParam, LPARAM lPar
                 if (DialogBox(bIns, MAKEINTRESOURCE(IDD_PLAYER), hwnd, &DlgProc) == IDOK)name_set = true;
                 break;
             }
-
+            if (LOWORD(lParam) >= b2Rect.left && LOWORD(lParam) <= b2Rect.right)
+            {
+                if (sound)
+                {
+                    sound = false;
+                    PlaySound(NULL, NULL, NULL);
+                    break;
+                }
+                else
+                {
+                    sound = true;
+                    PlaySound(snd_file, NULL, SND_ASYNC | SND_LOOP);
+                    break;
+                }
+            }
+            if (LOWORD(lParam) >= b3Rect.left && LOWORD(lParam) <= b3Rect.right)
+            {
+                if (!show_help)
+                {
+                    show_help = true;
+                    pause = true;
+                    ShowHelp();
+                    break;
+                }
+                else
+                {
+                    show_help = false;
+                    pause = false;
+                    break;
+                }
+            }
         }
         else
         {
+            if (upgrade_selected)break;
             if (gold < 100)
             {
                 if (sound)mciSendString(L"play.\\res\\negative.wav", NULL, NULL, NULL);
@@ -1257,7 +1333,7 @@ void CreateResources()
             hr = iWriteFactory->CreateTextFormat(L"Segoe Print", NULL, DWRITE_FONT_WEIGHT_EXTRA_BLACK,
                 DWRITE_FONT_STYLE_OBLIQUE, DWRITE_FONT_STRETCH_NORMAL, 18, L"", &nrmTextFormat);
             hr = iWriteFactory->CreateTextFormat(L"Segoe Print", NULL, DWRITE_FONT_WEIGHT_EXTRA_BLACK,
-                DWRITE_FONT_STYLE_OBLIQUE, DWRITE_FONT_STRETCH_NORMAL, 36, L"", &midTextFormat);
+                DWRITE_FONT_STYLE_OBLIQUE, DWRITE_FONT_STRETCH_NORMAL, 24, L"", &midTextFormat);
             hr = iWriteFactory->CreateTextFormat(L"Segoe Print", NULL, DWRITE_FONT_WEIGHT_EXTRA_BLACK,
                 DWRITE_FONT_STYLE_OBLIQUE, DWRITE_FONT_STRETCH_NORMAL, 72, L"", &bigTextFormat);
 
@@ -1307,6 +1383,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
         ErrExit(eClass);
     }
     CreateResources();
+    PlaySound(snd_file, NULL, SND_ASYNC | SND_LOOP);
 
     while (bMsg.message != WM_QUIT)
     {
